@@ -1,0 +1,90 @@
+name: Autograding Tests
+on: ["push", "repository_dispatch"]
+permissions:
+  checks: write
+  actions: read
+  contents: read
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    services:
+      tidb:
+        image: pingcap/tidb:latest
+        ports:
+          - 4000:4000
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Install Project dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install mysql-connector-python
+        pip install sqlfluff
+    - name: Wait for TiDB to be ready
+      run: |
+        until mysqladmin ping -h "127.0.0.1" -P 4000 --protocol=tcp --silent; do
+          echo "Waiting for TiDB to be ready..."
+          sleep 5
+        done
+        
+    - name: Folder Existence Check - university_db Folder
+      id: folder-existence-check
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Folder Existence Check - university_db Folder
+        setup-command: "chmod +x ./01_folder_check.sh"
+        command: "./01_folder_check.sh"
+        timeout: 10
+        max-score: 15
+
+    - name: File Existence Check - Checking Required Scripts
+      id: file-existence-check
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: File Existence Check - Checking Required Scripts
+        setup-command: "chmod +x ./02_files_check.sh"
+        command: "./02_files_check.sh"
+        timeout: 10
+        max-score: 15
+
+    - name: SQL Syntax Check - Validating SQL Scripts
+      id: sql-syntax-check
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: SQL Syntax Check - Validating SQL Scripts
+        setup-command: "chmod +x ./03_syntax_check.sh"
+        command: "./03_syntax_check.sh"
+        timeout: 10
+        max-score: 35
+
+    - name: SQL Execution Check - Executing SQL Scripts
+      id: sql-execution-check
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: SQL Execution Check - Executing SQL Scripts
+        setup-command: "chmod +x ./04_execution_check.sh"
+        command: "./04_execution_check.sh"
+        timeout: 10
+        max-score: 20
+
+    - name: SQL Post-Execution Check - Verifying Created Entities
+      id: sql-post-execution-check
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: SQL Post-Execution Check - Verifying Created Entities
+        setup-command: "chmod +x ./05_post_check.sh"
+        command: "./05_post_check.sh"
+        timeout: 10
+        max-score: 15
+
+    - name: Autograding Reporter
+      uses: classroom-resources/autograding-grading-reporter@v1
+      env:
+        FOLDER-EXISTENCE-CHECK_RESULTS: "${{steps.folder-existence-check.outputs.result}}"
+        FILE-EXISTENCE-CHECK_RESULTS: "${{steps.file-existence-check.outputs.result}}"
+        SQL-SYNTAX-CHECK_RESULTS: "${{steps.sql-syntax-check.outputs.result}}"
+        SQL-EXECUTION-CHECK_RESULTS: "${{steps.sql-execution-check.outputs.result}}"
+        SQL-POST-EXECUTION-CHECK_RESULTS: "${{steps.sql-post-execution-check.outputs.result}}"
+      with:
+        runners: folder-existence-check,file-existence-check,sql-syntax-check,sql-execution-check,sql-post-execution-check
